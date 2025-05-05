@@ -1,1 +1,1445 @@
 
+#include <iostream>
+#include <cstdlib>
+#include <fstream>
+#include <string>
+#include <ctime>
+#include <algorithm>
+#include <windows.h>
+#include <random>
+using namespace std;
+// colors
+const string BLACK = "\033[30m";
+const string RED = "\033[31m";
+const string GREEN = "\033[32m";
+const string YELLOW = "\033[33m";
+const string BLUE = "\033[34m";
+const string MAGENTA = "\033[35m";
+const string CYAN = "\033[36m";
+const string WHITE = "\033[37m";
+const string RESET = "\033[0m";
+
+const string BRIGHT_BLACK = "\033[90m";
+const string BRIGHT_RED = "\033[91m";
+const string BRIGHT_GREEN = "\033[92m";
+const string BRIGHT_YELLOW = "\033[93m";
+const string BRIGHT_BLUE = "\033[94m";
+const string BRIGHT_MAGENTA = "\033[95m";
+const string BRIGHT_CYAN = "\033[96m";
+const string BRIGHT_WHITE = "\033[97m";
+
+//-------------------Map Elements-------------------//
+const char WALL = '#';
+const char PLAYER = 'P';
+const char ZOMBIE = 'Z';
+const char ITEM = '*';
+const char SAFE_ZONE = 'S';
+const char EMPTY = ' ';
+
+const int MAP_WIDTH = 20;
+const int MAP_HEIGHT = 10;
+const int INITIAL_HEALTH = 100;
+const int ZOMBIE_DAMAGE = 25;
+const int MAX_ZOMBIES = 5;
+const int ITEM_SPAWN_RATE = 15;
+const int MAX_SCORES = 100;
+
+//---------------------------Ascii Art----------------------------//
+const string GAME_WON = "                            CONGRATS!!";
+const string WON = "                            YOU WON!!";
+const string GAME_OVER = "                            GAME OVER!!";
+const string EXIT = "                            EXITING!!!";
+
+//----------------------Zombie Movement Elements------------------//
+const int dx[4] = { -1, 1, 0, 0 }; // up, down, left, right
+const int dy[4] = { 0, 0, -1, 1 };
+
+struct QueueNode
+{
+    pair<int, int> data;
+    QueueNode* next;
+
+    QueueNode(pair<int, int> val) : data(val), next(nullptr) {}
+};
+
+//----------------------Queue Class-------------------------------//
+class Queue
+{
+private:
+    // front and rear node
+    QueueNode* front;
+    QueueNode* rear;
+
+public:
+    // default constructor
+    Queue()
+    {
+        front = NULL;
+        rear = NULL;
+    }
+
+    // Check if the queue is empty
+    bool empty()
+    {
+        return front == NULL;
+    }
+
+    // Add an element to the back of the queue
+    void push(pair<int, int> value)
+    {
+        QueueNode* newNode = new QueueNode(value);
+        if (rear)
+        {
+            rear->next = newNode;
+        }
+        else
+        {
+            front = newNode;
+        }
+        rear = newNode;
+    }
+
+    // Remove and return the front element of the queue
+    pair<int, int> pop()
+    {
+        if (empty())
+        {
+            cout << "Queue is empty\n";
+        }
+        QueueNode* temp = front;
+        pair<int, int> data = front->data;
+        front = front->next;
+
+        if (front == NULL)
+        {
+            rear = NULL;
+        }
+        delete temp;
+        return data;
+    }
+
+    // Peek at the front element without removing it
+    pair<int, int> frontElement()
+    {
+        if (empty())
+        {
+            cout << "Queue is empty\n";
+        }
+        return front->data;
+    }
+    // destructor
+    ~Queue()
+    {
+        while (!empty())
+        {
+            pop();
+        }
+    }
+};
+//----------------------------Items Class--------------------------//
+
+class Items
+{
+public:
+    // attributes of items
+    string name;
+    int value;
+    int effect;
+    Items* nextItem;
+
+    // default constructor
+    Items()
+    {
+        name = "";
+        value = 0;
+        effect = 0;
+        nextItem = NULL;
+    }
+
+    // parametrized constructor
+    Items(string n, int v, int e)
+    {
+        name = n;
+        value = v;
+        effect = e;
+        nextItem = NULL;
+    }
+};
+//----------------------------List Class--------------------------//
+class List
+{
+private:
+    // head of list
+    Items* head;
+
+public:
+    // default constructor
+    List()
+    {
+        head = NULL;
+    }
+    // push items in list
+    void push_back(Items* newItem)
+    {
+        Items* newNode = new Items(newItem->name, newItem->value, newItem->effect);
+        if (!head)
+        {
+            head = newNode;
+        }
+        else
+        {
+            Items* temp = head;
+            while (temp->nextItem)
+            {
+                temp = temp->nextItem;
+            }
+            temp->nextItem = newNode;
+        }
+    }
+
+    // empty checker
+    bool empty() const
+    {
+        return head == NULL;
+    }
+
+    // gives front element
+    Items* front() const
+    {
+        return head;
+    }
+    // pop first element
+    void pop_front()
+    {
+        if (head != NULL)
+        {
+            Items* temp = head;
+            head = head->nextItem;
+            delete temp;
+        }
+    }
+};
+//---------------------itemList initializing----------------------//
+List itemList;
+
+// function to initialize medicine items
+void initializeItems()
+{
+    string itemNames[30] = {
+        "Band",   // Bandage
+        "Medkit", // Medical Kit
+        "PainX",  // Painkiller
+        "FreezeBonus",  // Antibiotic
+        "Syrup",  // Cough Syrup
+        "Inhal",  // Inhaler
+        "Spray",  // Disinfectant Spray
+        "FreezeBonus",  // Gauze Pad
+        "Oint",   // Ointment
+        "IVBag",  // IV Fluid Bag
+        "Mask",   // Face Mask
+        "FreezeBonus",  // Vitamins
+        "Drop",   // Eye Drops
+        "Patch",  // Heat Patch
+        "Gel",    // Burn Gel
+        "Saline", // Saline Bottle
+        "EpiPen", // Epinephrine Pen
+        "FreezeBonus",  // Medical Gloves
+        "Thermo", // Thermometer
+        "Pads",   // Alcohol Pads
+        "Insul",  // Insulin
+        "Tabs",   // Tablets
+        "Tonic",  // Energy Tonic
+        "Shot",   // Injection Shot
+        "FreezeBonus",  // Healing Cream
+        "Stitch", // Stitch Kit
+        "Wrap",   // Wrist Wrap
+        "FreezeBonus",  // Razor Blade
+        "Soap",   // Antibacterial Soap
+        "Tape"    // Medical Tape
+    };
+
+    // Seed random number generator
+    srand(time(0));
+
+    // assigning random items from data
+    for (int i = 0; i < 30; i++)
+    {
+        int value = rand() % 10 + 50;
+        int effect = rand() % 10;
+        int r = rand() % 30;
+        itemList.push_back(new Items(itemNames[r], value, effect));
+    }
+}
+
+//---------------------------Player Class-------------------------//
+class Player
+{
+public:
+    // attributes
+    int x_cor, y_cor;
+    int health, score;
+    string playerName;
+    Items* inventory;
+    int ZombieEncounter;
+    // parametrized constructor
+    Player(int x = 0, int y = 0, int h = INITIAL_HEALTH)
+    {
+        x_cor = x;
+        y_cor = y;
+        health = h;
+        score = 0;
+        inventory = NULL;
+        ZombieEncounter = 0;
+    }
+};
+
+//-------------------------Zombie Class--------------------------//
+class Zombie
+{
+public:
+    // x and y coordinates
+    int x, y;
+};
+
+//---------------------------Node Class--------------------------//
+class Node
+{
+public:
+    // attributes
+    int x, y;
+    char type;
+    vector<pair<int, int>> neighbors;
+    Node(int x = 0, int y = 0, char type = EMPTY)
+    {
+        this->x = x;
+        this->y = y;
+        this->type = type;
+    }
+};
+
+//-------------------------Vector Class-------------//
+template <typename T>
+class Vector
+{
+private:
+    class Node
+    {
+    public:
+        // attributes
+        T data;
+        Node* next;
+        // parametrized constructor
+        Node(T val)
+        {
+            data = val;
+            next = NULL;
+        }
+    };
+
+    Node* head;
+    int size;
+
+public:
+    // default constructor
+    Vector()
+    {
+        head = NULL;
+        size = 0;
+    }
+    // function to push val in vector
+    void push_back(const T& val)
+    {
+        Node* newNode = new Node(val);
+        if (!head)
+        {
+            head = newNode;
+        }
+        else
+        {
+            Node* temp = head;
+            while (temp->next)
+            {
+                temp = temp->next;
+            }
+            temp->next = newNode;
+        }
+        size++;
+    }
+};
+int zombieFreezeTurns;
+//--------------------------Main Game Class----------------------//
+class ZombieGame
+{
+private:
+    // Graph of Nodes and Player
+    vector<vector<Node>> graph;
+    Player player;
+    Items* inventory;
+    int inventorySize;
+   
+
+public:
+    // default constructor
+    ZombieGame()
+    {
+        srand(static_cast<unsigned int>(time(0)));
+        initializeItems();
+        initializeGraph();
+        inventory = NULL;
+        inventorySize = 0;
+    }
+
+    //-------------------Save High Score-------------------------//
+    void saveHighScore()
+    {
+        ofstream outFile("highscores.txt", ios::app);
+
+        if (!outFile)
+        {
+            cerr << "Error: Could not open highscores file!" << endl;
+            return;
+        }
+        if (player.score <= 0)
+        {
+            player.score = 0;
+        }
+
+        outFile << "Player: " << player.playerName
+            << " | Score: " << player.score << "\n";
+
+        outFile.close();
+    }
+
+    //-------------------Get Player Name------------------------//
+    void getPlayerName()
+    {
+        cout << "Enter your name: ";
+        getline(cin, player.playerName);
+    }
+
+    //-------------------Game Over Handling---------------------//
+    void handleGameOver()
+    {
+        // display gameover
+        cout << "                               " << BRIGHT_RED << "GAME OVER!\n";
+        // saving the score to file
+        saveHighScore();
+        // display the score if game ends
+        displayScores();
+        exit(0);
+    }
+
+    //-------------------Game Won Handling----------------------//
+    void handleGameWon()
+    {
+        // clearing the screen
+        clearing();
+        // displaying message
+        cout << "\n\n\n\n\n\n\n"
+            << BRIGHT_BLUE << GAME_WON
+            << "\n"
+            << WON;
+        // scoring score to file
+        saveHighScore();
+        // displaying high scores
+        cout << endl;
+        displayScores();
+        exit(0);
+    }
+
+    //-------------------Displaying Game function---------------//
+    void gameFunction()
+    {
+        bool condition = false;
+        // if health is negative make it zero
+        if (player.health <= 0)
+        {
+            player.health = 0;
+            condition = true;
+        }
+        // displaying game interface
+        cout << "\n\n\n\n";
+        cout << BRIGHT_CYAN << "                         =========================================================================\n";
+        cout << BRIGHT_CYAN << "                         |" << BRIGHT_BLACK << "   [1] Manual Mode    " << BRIGHT_CYAN << "|" << BRIGHT_BLACK << "     [2] Automated Mode     " << BRIGHT_CYAN << "|" << BRIGHT_BLACK << "     [3] Exit      " << BRIGHT_CYAN << "|\n";
+        cout << BRIGHT_CYAN << "                         =========================================================================\n";
+        cout << BRIGHT_CYAN << "                         |" << BRIGHT_BLACK << "    Health:" << player.health << "    " << BRIGHT_CYAN << "|" << BRIGHT_BLACK << "    Score:" << player.score << "    " << BRIGHT_CYAN << "|" << BRIGHT_BLACK << "    Inventory:[";
+
+        // Display inventory items
+        Items* currentItem = inventory;
+        while (currentItem != NULL)
+        {
+            cout << currentItem->name;
+            if (currentItem->nextItem != NULL)
+            {
+                cout << ", ";
+            }
+            currentItem = currentItem->nextItem;
+        }
+
+        cout << BRIGHT_BLACK << "]" << BRIGHT_CYAN << "       |\n";
+        cout << BRIGHT_CYAN << "                         =========================================================================\n";
+
+        // print the graph
+        printGraph();
+
+        cout << BRIGHT_CYAN << "                         =========================================================================\n";
+        cout << BRIGHT_CYAN << "                         | Legend:                                                               |\n";
+        cout << BRIGHT_CYAN << "                         |" << BRIGHT_BLACK << "      P = Player   Z = Zombie   S = Safe Zone   * = Item   # = Wall    " << BRIGHT_CYAN << "|\n";
+        cout << BRIGHT_CYAN << "                         =========================================================================\n";
+        cout << RESET;
+
+        // if score<=0 game is over
+        if (condition == true)
+        {
+            handleGameOver();
+        }
+        // winning condition check
+        if (player.x_cor == MAP_HEIGHT - 2 && player.y_cor == MAP_WIDTH - 2)
+        {
+            handleGameWon();
+        }
+    }
+
+    //----------------------- Spawning items---------------------//
+    void spawnItems()
+    {
+        for (int i = 0; i < MAP_HEIGHT; i++)
+        {
+            for (int j = 0; j < MAP_WIDTH; j++)
+            {
+                // if graph at these coordinates is empty
+                if (graph[i][j].type == EMPTY)
+                {
+                    int random = rand() % 100;
+                    if (random < ITEM_SPAWN_RATE)
+                    {
+                        graph[i][j].type = ITEM;
+                    }
+                }
+            }
+        }
+    }
+    //-------------------- Spawning zombies---------------------//
+    void spawnZombies()
+    {
+
+        vector<pair<int, int>> emptyCells;
+
+        // Collect empty positions
+        for (int i = 0; i < MAP_HEIGHT; i++)
+        {
+            for (int j = 0; j < MAP_WIDTH; j++)
+            {
+                if (graph[i][j].type == EMPTY)
+                {
+                    emptyCells.push_back({ i, j });
+                }
+            }
+        }
+
+        // seeding random time
+        srand(time(0));
+        random_shuffle(emptyCells.begin(), emptyCells.end());
+
+        // Spawning zombies
+        int zombieCount = 0;
+        for (auto& pos : emptyCells)
+        {
+            // if limit is reached
+            if (zombieCount >= MAX_ZOMBIES)
+            {
+                break;
+            }
+
+            // place the zombie
+            graph[pos.first][pos.second].type = ZOMBIE;
+            // increase zombie number
+            zombieCount++;
+        }
+    }
+    //---------------------Inititalizing Graph------------------//
+    void initializeGraph()
+    {
+        // Initialize the graph with empty spaces
+        graph.resize(MAP_HEIGHT, vector<Node>(MAP_WIDTH));
+
+        // looping through height and width
+        for (int i = 0; i < MAP_HEIGHT; i++)
+        {
+            for (int j = 0; j < MAP_WIDTH; j++)
+            {
+                // place empty cells
+                graph[i][j] = Node(i, j, EMPTY);
+            }
+        }
+
+        // Adding the border walls along Columns(Height)
+        for (int i = 0; i < MAP_HEIGHT; i++)
+        {
+            graph[i][0].type = WALL;
+            graph[i][MAP_WIDTH - 1].type = WALL;
+        }
+        // Adding the border walls along Rows(Width)
+        for (int j = 0; j < MAP_WIDTH; j++)
+        {
+            graph[0][j].type = WALL;
+            graph[MAP_HEIGHT - 1][j].type = WALL;
+        }
+
+        // Adding inner walls at 5th,10th and 15th column
+        for (int i = 2; i < MAP_HEIGHT - 2; i++)
+        {
+            graph[i][5].type = WALL;
+            graph[i][10].type = WALL;
+            graph[i][15].type = WALL;
+        }
+
+        // Set neighbors (graph edges)
+        for (int i = 0; i < MAP_HEIGHT; i++)
+        {
+            for (int j = 0; j < MAP_WIDTH; j++)
+            {
+                if (graph[i][j].type != WALL)
+                {
+                    if (i > 0 && graph[i - 1][j].type != WALL)
+                    {
+                        graph[i][j].neighbors.push_back({ i - 1, j });
+                    }
+                    if (i < MAP_HEIGHT - 1 && graph[i + 1][j].type != WALL)
+                    {
+                        graph[i][j].neighbors.push_back({ i + 1, j });
+                    }
+                    if (j > 0 && graph[i][j - 1].type != WALL)
+                    {
+                        graph[i][j].neighbors.push_back({ i, j - 1 });
+                    }
+                    if (j < MAP_WIDTH - 1 && graph[i][j + 1].type != WALL)
+                    {
+                        graph[i][j].neighbors.push_back({ i, j + 1 });
+                    }
+                }
+            }
+        }
+
+        // Setting the player at coorditnates (1,1)
+        player = Player(1, 1);
+        graph[1][1].type = PLAYER;
+
+        // Setting safe zone
+        graph[MAP_HEIGHT - 2][MAP_WIDTH - 2].type = SAFE_ZONE;
+
+        // calling spawnitems and spawnzombies function
+        spawnItems();
+        spawnZombies();
+    }
+    //---------------------  Printing Map-----------------------//
+    void printGraph()
+    {
+        for (int i = 0; i < MAP_HEIGHT; i++)
+        {
+            // print space before every row
+            cout << "                          ";
+            for (int j = 0; j < MAP_WIDTH; j++)
+            {
+                char cell = graph[i][j].type;
+                // setting colors based on type of entity
+                switch (cell)
+                {
+                case ZOMBIE:
+                    cout << BRIGHT_RED;
+                    break;
+                case PLAYER:
+                    cout << BRIGHT_BLUE;
+                    break;
+                case WALL:
+                    cout << BRIGHT_GREEN;
+                    break;
+                case ITEM:
+                    cout << BRIGHT_BLACK;
+                    break;
+                case SAFE_ZONE:
+                    cout << BRIGHT_WHITE;
+                    break;
+
+                default:
+                    cout << RESET;
+                }
+
+                cout << cell << " ";
+            }
+            // writing name of group members
+            if (i == 3)
+            {
+                cout << BRIGHT_CYAN << " ===============================";
+            }
+            if (i == 4)
+            {
+                cout << BRIGHT_CYAN << " =" << BRIGHT_YELLOW << "     ZOMBIE" << BRIGHT_BLUE << " APOCALYPSE      " << BRIGHT_CYAN << " = ";
+            }
+            if (i == 5)
+            {
+                cout << BRIGHT_CYAN << " =" << WHITE << "   1)Sammad Israr->23i-3042" << BRIGHT_CYAN << "  = ";
+            }
+            if (i == 6)
+            {
+                cout << BRIGHT_CYAN << " =" << WHITE << "   2)Abdul  Moeed->23i-3101" << BRIGHT_CYAN << "  =";
+            }
+            if (i == 7)
+            {
+                cout << BRIGHT_CYAN << " ===============================";
+            }
+            cout << RESET << endl;
+        }
+    }
+    //-----------------Adding Item To Inventory-----------------//
+    void addItemToInventory(Items* item)
+    {
+        // if item doesn't exists
+        if (item == NULL)
+        {
+            return;
+        }
+        // if limit reaches
+        if (inventorySize > 5)
+        {
+            cout << "                         ";
+            cout << RED << "Max Limit : 5 Items\n";
+            return;
+        }
+        // Add item to inventory
+        Items* newItem = new Items(item->name, item->value, item->effect);
+        newItem->nextItem = NULL;
+
+        // if inventory is empty add to inventory
+        if (inventory == NULL)
+        {
+            inventory = newItem;
+        }
+        else
+        {
+            // place at Null position
+            Items* temp = inventory;
+            while (temp->nextItem != NULL)
+            {
+                temp = temp->nextItem;
+            }
+            temp->nextItem = newItem;
+        }
+        // incriment inventory size
+        inventorySize++;
+    }
+    //--------------------Helper Movement Function- ------------//
+    void movePlayer(string key)
+    {
+        // calling functions based on input keys
+        if (key == "w")
+        {
+            moveUp();
+        }
+        else if (key == "s")
+        {
+            moveDown();
+        }
+        else if (key == "d")
+        {
+            moveRight();
+        }
+        else if (key == "a")
+        {
+            moveLeft();
+        }
+    }
+    //------------------Movement Controlling functions----------//
+    void moveUp()
+    {
+        // decriment in x_cor (row--) due to up movement
+        int newX = player.x_cor - 1;
+        int newY = player.y_cor;
+
+        // checking if there isn't wall
+        if (newX >= 0 && graph[newX][newY].type != WALL)
+        {
+            // if there is zombie
+            if (graph[newX][newY].type == ZOMBIE)
+            {
+                cout << "                           " << BRIGHT_RED << "Zombie Attacked!" << endl;
+                player.ZombieEncounter++;
+
+                // calling health deduction and calScore functions
+                healthDeduction();
+                calScore();
+            }
+            // if there is an item to collect
+            else if (graph[newX][newY].type == ITEM)
+            {
+                cout << "                         " << YELLOW << "Item Collected!\n"
+                    << RESET;
+                calScore();
+                // if list isn't empty
+                if (!itemList.empty())
+                {
+                    // Get the item
+                    Items* currentItem = itemList.front();
+
+                    // Add to inventory
+                    addItemToInventory(currentItem);
+
+                    // if it's a Freeze Bonus
+                    if (currentItem->name == "FreezeBonus")
+                    {
+                        bonusFunction();  
+                    }
+
+
+                    itemList.pop_front();
+                }
+                else
+                {
+                    cout << RED << "No items left in the world!\n"
+                        << RESET;
+                }
+            }
+            // place empty at old position
+            graph[player.x_cor][player.y_cor].type = EMPTY;
+            player.x_cor = newX;
+            player.y_cor = newY;
+            // place player at new position
+            graph[newX][newY].type = PLAYER;
+
+        }
+        if (zombieFreezeTurns > 0)
+            zombieFreezeTurns--;
+    }
+    void moveDown()
+    {
+        // incrimenting row
+        int newX = player.x_cor + 1;
+        int newY = player.y_cor;
+
+        // checking coordinates and wall
+        if (newX < MAP_HEIGHT && graph[newX][newY].type != WALL)
+        {
+            // if there is zombie
+            if (graph[newX][newY].type == ZOMBIE)
+            {
+                cout << "                           " << BRIGHT_RED << "Zombie Attacked!" << endl;
+                player.ZombieEncounter++;
+
+                // calling functions
+                healthDeduction();
+                calScore();
+            }
+            // if there is an item
+            else if (graph[newX][newY].type == ITEM)
+            {
+                cout << "                         " << YELLOW << "Item Collected!\n"
+                    << RESET;
+                calScore();
+
+                // if itemlist isn't empty
+                if (!itemList.empty())
+                {
+                    // Get the item
+                    Items* currentItem = itemList.front();
+
+                    // Add to inventory
+                    addItemToInventory(currentItem);
+
+                    // if it's a Freeze Bonus
+                    if (currentItem->name == "FreezeBonus")
+                    {
+                        bonusFunction();
+                    }
+
+                    itemList.pop_front();
+                }
+                else
+                {
+                    cout << RED << "No items left in the world!\n"
+                        << RESET;
+                }
+            }
+
+            // place empty at old pos
+            graph[player.x_cor][player.y_cor].type = EMPTY;
+            player.x_cor = newX;
+            player.y_cor = newY;
+            // place player at new pos
+            graph[newX][newY].type = PLAYER;
+        }
+        if (zombieFreezeTurns > 0)
+            zombieFreezeTurns--;
+    }
+    void moveLeft()
+    {
+        // decrementing column
+        int newX = player.x_cor;
+        int newY = player.y_cor - 1;
+
+        // checking coordinates and wall
+        if (newY >= 0 && graph[newX][newY].type != WALL)
+        {
+            // if there is zombie
+            if (graph[newX][newY].type == ZOMBIE)
+            {
+                cout << "                           " << BRIGHT_RED << "Zombie Attacked!" << endl;
+                player.ZombieEncounter++;
+
+                // calling functions
+                healthDeduction();
+                calScore();
+            }
+            // if there is an item
+            else if (graph[newX][newY].type == ITEM)
+            {
+                cout << "                         " << YELLOW << "Item Collected!\n"
+                    << RESET;
+                calScore();
+
+                // if itemlist isn't empty
+                if (!itemList.empty())
+                {
+                    // Get the item
+                    Items* currentItem = itemList.front();
+
+                    // Add to inventory
+                    addItemToInventory(currentItem);
+
+                    // if it's a Freeze Bonus
+                    if (currentItem->name == "FreezeBonus")
+                    {
+                        bonusFunction();
+                    }
+
+                    itemList.pop_front();
+                }
+                else
+                {
+                    cout << RED << "No items left in the world!\n"
+                        << RESET;
+                }
+            }
+
+            // place empty at old pos
+            graph[player.x_cor][player.y_cor].type = EMPTY;
+            player.x_cor = newX;
+            player.y_cor = newY;
+            // place player at new pos
+            graph[newX][newY].type = PLAYER;
+        }
+        if (zombieFreezeTurns > 0)
+            zombieFreezeTurns--;
+    }
+
+    void moveRight()
+    {
+        // incrementing column
+        int newX = player.x_cor;
+        int newY = player.y_cor + 1;
+
+        // checking coordinates and wall
+        if (newY < MAP_WIDTH && graph[newX][newY].type != WALL)
+        {
+            // if there is zombie
+            if (graph[newX][newY].type == ZOMBIE)
+            {
+                cout << "                           " << BRIGHT_RED << "Zombie Attacked!" << endl;
+                player.ZombieEncounter++;
+
+                // calling functions
+                healthDeduction();
+                calScore();
+            }
+            // if there is an item
+            else if (graph[newX][newY].type == ITEM)
+            {
+                cout << "                         " << YELLOW << "Item Collected!\n"
+                    << RESET;
+                calScore();
+
+                // if itemlist isn't empty
+                if (!itemList.empty())
+                {
+                    // Get the item
+                    Items* currentItem = itemList.front();
+
+                    // Add to inventory
+                    addItemToInventory(currentItem);
+
+                    // if it's a Freeze Bonus
+                    if (currentItem->name == "FreezeBonus")
+                    {
+                        bonusFunction();
+                    }
+
+                    itemList.pop_front();
+                }
+                else
+                {
+                    cout << RED << "No items left in the world!\n"
+                        << RESET;
+                }
+            }
+
+            // place empty at old pos
+            graph[player.x_cor][player.y_cor].type = EMPTY;
+            player.x_cor = newX;
+            player.y_cor = newY;
+            // place player at new pos
+            graph[newX][newY].type = PLAYER;
+        }
+        if (zombieFreezeTurns > 0)
+            zombieFreezeTurns--;
+    }
+
+    //---------------------Manual Mode-------------------------//
+    void manualMode()
+    {
+        // input variable
+        string inp;
+        cout << "                         ";
+        // Use Item check means if inventory is not empty
+        if (inventorySize > 0)
+        {
+            cout << "Input(w,a,s,d & Y to use items) :- ";
+            cin >> inp;
+            // checking if inputted for using item
+            if (inp == "Y")
+            {
+                useItem();
+            }
+        }
+
+        // Only Movements
+        else
+        {
+            cout << "Movement (w,a,s,d) :- ";
+            cin >> inp;
+        }
+
+        // calling movement, gameFunction and zombie movement function
+        movePlayer(inp);
+        gameFunction();
+        moveZombiesTowardsPlayer(player.y_cor, player.x_cor);
+        // performing recursion
+        manualMode();
+    }
+    //----------------------Auto Mode--------------------------//
+    void autoMode()
+    {
+        clearing();
+        cout << "\n\n                         " << BRIGHT_YELLOW << "AUTOMATED MODE ACTIVATED!\n";
+        cout << "                         " << BRIGHT_YELLOW << "Finding path to safe zone...\n";
+
+        // Find path from player to safe zone using BFS
+        vector<pair<int, int>> path = findPathToSafeZone();
+
+        if (path.empty())
+        {
+            cout << "                         " << BRIGHT_RED << "No path to safe zone found!\n";
+            return;
+        }
+
+        // Follow the path step by step
+        for (const auto& step : path)
+        {
+            // Check if game should continue
+            if (player.health <= 0)
+            {
+                cout << "                         " << BRIGHT_RED << "GAME OVER! Player died during auto mode.\n";
+                return;
+            }
+
+            // Move player to next step
+            graph[player.x_cor][player.y_cor].type = EMPTY;
+            player.x_cor = step.first;
+            player.y_cor = step.second;
+
+            // Check what's at new position
+            if (graph[player.x_cor][player.y_cor].type == ITEM)
+            {
+                cout << "                         " << YELLOW << "Item Collected!\n"
+                    << RESET;
+                calScore();
+                if (!itemList.empty())
+                {
+                    addItemToInventory(itemList.front());
+                    itemList.pop_front();
+                }
+            }
+            else if (graph[player.x_cor][player.y_cor].type == ZOMBIE)
+            {
+                cout << "                         " << BRIGHT_RED << "Zombie Attacked!\n"
+                    << RESET;
+                player.ZombieEncounter++;
+                healthDeduction();
+                calScore();
+            }
+
+            graph[player.x_cor][player.y_cor].type = PLAYER;
+
+            // Move zombies
+            moveZombiesTowardsPlayer(player.y_cor, player.x_cor);
+
+            // Refresh display
+            clearing();
+            gameFunction();
+
+            // Small delay for visibility
+            Sleep(500);
+
+            // Check if reached safe zone
+            if (player.x_cor == MAP_HEIGHT - 2 && player.y_cor == MAP_WIDTH - 2)
+            {
+                clearing();
+                cout << "\n\n\n\n\n\n\n"
+                    << BRIGHT_BLUE << GAME_WON << "\n"
+                    << WON;
+                exit(0);
+            }
+        }
+    }
+
+    //---------Helper function to find path using BFS----------//
+    vector<pair<int, int>> findPathToSafeZone()
+    {
+        vector<vector<bool>> visited(MAP_HEIGHT, vector<bool>(MAP_WIDTH, false));
+        vector<vector<pair<int, int>>> parent(MAP_HEIGHT, vector<pair<int, int>>(MAP_WIDTH, { -1, -1 }));
+
+        Queue q;
+        q.push({ player.x_cor, player.y_cor });
+        visited[player.x_cor][player.y_cor] = true;
+
+        int dx[] = { -1, 1, 0, 0 };
+        int dy[] = { 0, 0, -1, 1 };
+
+        bool found = false;
+        pair<int, int> safeZonePos = { MAP_HEIGHT - 2, MAP_WIDTH - 2 };
+
+        while (!q.empty())
+        {
+            auto current = q.frontElement();
+            q.pop();
+
+            if (current == safeZonePos)
+            {
+                found = true;
+                break;
+            }
+
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = current.first + dx[i];
+                int ny = current.second + dy[i];
+
+                if (nx >= 0 && nx < MAP_HEIGHT && ny >= 0 && ny < MAP_WIDTH &&
+                    !visited[nx][ny] && (graph[nx][ny].type == EMPTY || graph[nx][ny].type == ITEM || graph[nx][ny].type == SAFE_ZONE || graph[nx][ny].type == ZOMBIE))
+                {
+                    visited[nx][ny] = true;
+                    parent[nx][ny] = current;
+                    q.push({ nx, ny });
+                }
+            }
+        }
+
+        vector<pair<int, int>> path;
+        if (found)
+        {
+            // Reconstruct path
+            pair<int, int> current = safeZonePos;
+            while (current.first != player.x_cor || current.second != player.y_cor)
+            {
+                path.push_back(current);
+                current = parent[current.first][current.second];
+            }
+            reverse(path.begin(), path.end());
+        }
+
+        return path;
+    }
+
+    //-------------------Taking inputs-------------------------//
+    void takeInput()
+    {
+        // calling gameFunction to have menu
+        gameFunction();
+        cout << "                         ";
+        cout << "Mode Selection:- ";
+        int choice;
+        cin >> choice;
+        // using switch case for handling input
+        switch (choice)
+        {
+        case 1:
+            manualMode();
+            break;
+
+        case 2:
+            autoMode();
+            break;
+        case 3:
+            clearing();
+            cout << BRIGHT_BLUE << "\n\n\n\n                         ";
+            cout << EXIT;
+            exit(0);
+            break;
+        default:
+            while (choice < 1 || choice > 3)
+            {
+                cout << "                         ";
+                cout << BRIGHT_RED << "Invalid input!!\nEnter again:- ";
+                cout << "                         ";
+                cin >> choice;
+            }
+            break;
+        }
+    }
+    //-------------------Screen Clearing-----------------------//
+    void clearing()
+    {
+#ifdef _WIN32
+        system("cls"); // Windows
+#else
+        system("clear"); // Unix/Linux/Mac
+#endif
+    }
+    //-------------------Score Calculation---------------------//
+    void calScore()
+    {
+        // score calculation
+        if (inventory != NULL)
+        {
+            player.score += (10 * inventory->effect) - (player.ZombieEncounter * 5) + (inventorySize / 5);
+        }
+        else
+        {
+            player.score += ((inventorySize / 2) - (player.ZombieEncounter * 5));
+        }
+    }
+    //-------------------Health Deduction----------------------//
+    void healthDeduction()
+    {
+        // decriment the health by 23
+        player.health -= 23;
+    }
+    //--------------------Use Item-----------------------------//
+    void useItem()
+    {
+        // if health is full can't use item
+        if (player.health == 100)
+        {
+            cout << "                          " << BRIGHT_GREEN << "Can't Use Item [HEALTH==100]\n";
+            return;
+        }
+        // add health
+        player.health += (inventory->value / 3);
+        // if health reaches above 100 make it 100
+        if (player.health > 100)
+        {
+            player.health = 100;
+        }
+        // remove item from inventory if used
+        Items* temp = inventory;
+        inventory = inventory->nextItem;
+        delete temp;
+        // decriment inventory size
+        inventorySize--;
+    }
+    //--------------------Move Zombies-------------------------//
+    void moveZombiesTowardsPlayer(int playerX, int playerY)
+    {
+        if (zombieFreezeTurns > 0)
+        {
+            // skip movement this turn
+            cout << BRIGHT_BLUE << "Zombies are frozen for " << zombieFreezeTurns << " more turns!" << RESET << endl;
+            return; 
+        }
+        if (playerX < 0 || playerX >= MAP_WIDTH || playerY < 0 || playerY >= MAP_HEIGHT)
+        {
+            cerr << "Invalid player position: (" << playerX << ", " << playerY << ")" << endl;
+            return;
+        }
+
+        vector<vector<bool>> visited(MAP_HEIGHT, vector<bool>(MAP_WIDTH, false));
+        vector<vector<pair<int, int>>> parent(MAP_HEIGHT, vector<pair<int, int>>(MAP_WIDTH, { -1, -1 }));
+        Queue q;
+
+        visited[playerY][playerX] = true;
+        q.push({ playerX, playerY });
+
+        int dx[] = { -1, 1, 0, 0 };
+        int dy[] = { 0, 0, -1, 1 };
+
+        while (!q.empty())
+        {
+            int x = q.frontElement().first;
+            int y = q.frontElement().second;
+            q.pop();
+
+            for (int d = 0; d < 4; ++d)
+            {
+                int nx = x + dx[d];
+                int ny = y + dy[d];
+
+                if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT &&
+                    !visited[ny][nx] && graph[ny][nx].type != WALL)
+                {
+                    visited[ny][nx] = true;
+                    parent[ny][nx] = { x, y };
+                    q.push({ nx, ny });
+                }
+            }
+        }
+
+        vector<pair<int, int>> zombies;
+        for (int i = 0; i < MAP_HEIGHT; ++i)
+        {
+            for (int j = 0; j < MAP_WIDTH; ++j)
+            {
+                if (graph[i][j].type == ZOMBIE)
+                {
+                    zombies.push_back({ j, i });
+                }
+            }
+        }
+
+        vector<pair<int, int>> emptyCells;
+        for (int i = 0; i < MAP_HEIGHT; ++i)
+        {
+            for (int j = 0; j < MAP_WIDTH; ++j)
+            {
+                if (graph[i][j].type == EMPTY)
+                {
+                    emptyCells.push_back({ j, i });
+                }
+            }
+        }
+        random_shuffle(emptyCells.begin(), emptyCells.end());
+
+        for (const auto& z : zombies)
+        {
+            int zx = z.first;
+            int zy = z.second;
+
+            if (zx < 0 || zx >= MAP_WIDTH || zy < 0 || zy >= MAP_HEIGHT)
+            {
+                cerr << "Zombie index out of range at (" << zx << ", " << zy << ")" << endl;
+                continue;
+            }
+
+            if (!visited[zy][zx])
+                continue;
+
+            pair<int, int> next = parent[zy][zx];
+            int nx = next.first;
+            int ny = next.second;
+
+            if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT)
+            {
+                cerr << "Invalid move target: (" << nx << ", " << ny << ") for zombie at (" << zx << ", " << zy << ")" << endl;
+                continue;
+            }
+
+            if (graph[ny][nx].type == EMPTY)
+            {
+                graph[zy][zx].type = EMPTY;
+                graph[ny][nx].type = ZOMBIE;
+            }
+            else if (graph[ny][nx].type == PLAYER)
+            {
+                cout << "                   " << BRIGHT_RED << "Zombie Attacked!\n"
+                    << RESET;
+                player.ZombieEncounter++;
+                healthDeduction();
+
+                if (!emptyCells.empty())
+                {
+                    auto& newPos = emptyCells.back();
+                    graph[zy][zx].type = EMPTY;
+                    graph[newPos.second][newPos.first].type = ZOMBIE;
+                    emptyCells.pop_back();
+                }
+            }
+        }
+    }
+    //--------------------Display Scores-------------------------//
+
+    void displayScores()
+    {
+        struct PlayerScore
+        {
+            string name;
+            int score;
+        };
+
+        // Bubble sort to sort array in descending order of score
+        auto sortScores = [](PlayerScore arr[], int n)
+            {
+                for (int i = 0; i < n - 1; ++i)
+                {
+                    for (int j = 0; j < n - i - 1; ++j)
+                    {
+                        if (arr[j].score < arr[j + 1].score)
+                        {
+                            swap(arr[j], arr[j + 1]);
+                        }
+                    }
+                }
+            };
+
+        ifstream inFile("highscores.txt");
+        if (!inFile)
+        {
+            cerr << "Error: Could not open highscores file!" << endl;
+            return;
+        }
+
+        PlayerScore scores[MAX_SCORES];
+        int count = 0;
+        string line;
+
+        // Read each line and extract name and score
+        while (getline(inFile, line) && count < MAX_SCORES)
+        {
+            size_t posName = line.find("Player: ");
+            size_t posScore = line.find("| Score: ");
+
+            if (posName != string::npos && posScore != string::npos)
+            {
+                string name = line.substr(posName + 8, posScore - (posName + 8));
+                int score = stoi(line.substr(posScore + 9));
+                scores[count++] = { name, score };
+            }
+        }
+
+        inFile.close();
+
+        // Sort the scores in descending order
+        sortScores(scores, count);
+
+        // Display sorted high scores
+        cout << BRIGHT_MAGENTA << "                         ---- Sorted High Scores ----" << RESET << endl;
+        for (int i = 0; i < count; ++i)
+        {
+            cout << BRIGHT_CYAN << "                         Player: " << scores[i].name
+                << " | Score: " << scores[i].score << RESET << endl;
+        }
+    }
+    //-----------------------bonus function--------------------//
+    void bonusFunction() {
+        zombieFreezeTurns = 5;
+    }
+};
+
+//-------------------------Main function----------------------//
+int main()
+{
+
+    // creating game instance
+    ZombieGame game;
+    // Taking input name of player and mode selection input
+    game.getPlayerName();
+    game.takeInput();
+
+    return 0;
+}

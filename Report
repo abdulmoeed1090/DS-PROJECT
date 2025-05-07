@@ -1,1 +1,100 @@
 
+Zombie Apocalypse Game Report
+1. Introduction
+This report documents the implementation of a Zombie Apocalypse survival game developed in C++. The game features a player navigating through a maze-like map while avoiding zombies and collecting medical items to maintain health. The objective is to reach the safe zone while managing health and inventory.
+2. Game Overview
+2.1 Core Features
+•	Map Navigation: Player moves through a 20x10 grid with walls and obstacles
+•	Zombie Encounters: Zombies move toward the player and reduce health on contact
+•	Item Collection: Medical items can be collected to restore health
+•	Two Game Modes: Manual control and automated pathfinding modes
+•	Score System: Points awarded for items collected and zombies avoided
+2.2 Technical Components
+•	Custom data structures (Vector, Queue, List)
+•	Graph-based map representation
+•	Pathfinding algorithm (BFS)
+•	Console-based color interface
+•	Persistent high score tracking
+3. Data Structures Implementation
+3.1 Custom Vector Class
+The game implements a templated Vector class with:
+•	Dynamic resizing capability
+•	Push_back operation (O(n) due to linked list implementation)
+•	Basic memory management
+•	Specialization for bool type to optimize storage
+3.2 Queue Class
+•	Linked-list based implementation
+•	Supports push, pop, and front operations
+•	Used for BFS pathfinding algorithm
+3.3 List Class
+•	Manages the collection of medical items
+•	Push_back and pop_front operations
+•	Serves as the item spawn pool
+4. Game Mechanics
+4.1 Map Generation
+•	Fixed 20x10 grid with:
+o	Border walls
+o	Vertical walls at columns 5, 10, and 15
+o	Randomly spawned items (15% chance per empty cell)
+o	Up to 5 zombies spawned in empty spaces
+4.2 Player Movement
+•	Four-directional movement (WASD keys)
+•	Collision detection with walls
+•	Item collection triggers:
+o	Score calculation
+o	Inventory management
+o	Health restoration
+4.3 Zombie Behavior
+•	Zombies move toward player using BFS pathfinding
+•	On contact:
+o	Player health reduced by 23 points
+o	Zombie respawns at random empty location
+o	Score penalty applied
+4.4 Health and Inventory System
+•	Initial health: 100 points
+•	Inventory capacity: 5 items
+•	Items can be used to restore health (value/3)
+•	Score calculation considers:
+o	Item effects
+o	Zombie encounters
+o	Inventory size
+5. Game Modes
+5.1 Manual Mode
+•	Player controls movement directly
+•	'Y' key to use inventory items
+•	Real-time zombie movement
+5.2 Automated Mode
+•	BFS algorithm finds path to safe zone
+•	Player automatically follows path
+•	Zombies still pose threat during movement
+6. Code Structure
+6.1	Main Components
+•	Data Structures: Vector, Queue, List implementations
+•	Game Entities: Player, Zombie, Item classes
+•	Map System: Node-based graph representation
+•	Game Logic: ZombieGame class managing all gameplay
+  6.2 Key Algorithms
+•	BFS Pathfinding: Used for both zombie movement and automated player mode
+•	Random Spawning: Items and zombies placed randomly at game start
+•	Score Calculation: Complex formula considering multiple factors
+7. User Interface
+7.1 Visual Elements
+•	Color-coded map elements:
+o	Player (Blue)
+o	Zombies (Red)
+o	Walls (Green)
+o	Items (Black)
+o	Safe zone (White)
+•	ASCII art for game messages
+7.2 Game Status Display
+•	Health and score tracking
+•	Inventory contents
+•	Legend explaining map symbols
+8. Gameplay Screenshots:
+ 
+ 
+ 
+9. Conclusion
+The Zombie Apocalypse game demonstrates effective use of custom data structures and graph algorithms in game development. While currently implemented as a console application, the core architecture supports potential expansion into more sophisticated versions. The game successfully combines strategic movement planning with real-time survival elements, creating an engaging player experience.
+
+
